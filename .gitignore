@@ -1,0 +1,14 @@
+# CMake and Build artifacts
+build/
+CMakeCache.txt
+CMakeFiles/
+Makefile
+cmake_install.cmake
+
+# Compiled executables
+*.exe
+*.out
+*.app
+
+# OS generated files
+.DS_Store
