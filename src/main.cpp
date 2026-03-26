@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <chrono> // The benchmarking library
 #include "StringMatcher.h"
 #include "AlgoEngine.h"
 #include "ParallelEngine.h"
@@ -9,8 +10,8 @@ int main()
 {
     std::cout << "--- ALGO ENGINE BOOTING ---\n\n";
 
-    // 1. Test File I/O and String Matching
-    std::string filePath = "../data/sample_text.txt"; // Path relative to the build folder
+    //  Base File
+    std::string filePath = "../data/sample_text.txt";
     std::ifstream file(filePath);
     std::string textContent;
 
@@ -19,42 +20,58 @@ int main()
         std::stringstream buffer;
         buffer << file.rdbuf();
         textContent = buffer.str();
-        std::cout << "[SUCCESS] Loaded sample_text.txt (" << textContent.length() << " characters)\n";
     }
     else
     {
-        std::cerr << "[ERROR] Could not open " << filePath << ". Make sure the file exists!\n";
-        // Fallback text if file isn't found
         textContent = "THIS IS A FALLBACK STRING FOR TESTING EXACT MATCHING.";
     }
 
+    //  Stress Test Setup (Inflating the data)
+    std::cout << "[SYSTEM] Inflating dataset for stress testing...\n";
+    std::string massiveText = textContent;
+    // Duplicate the string 16 times (2^16 multiplier) to create a massive payload
+    for (int i = 0; i < 16; ++i)
+    {
+        massiveText += massiveText;
+    }
+    std::cout << "[SUCCESS] Dataset inflated to " << massiveText.length() << " characters.\n\n";
+
     std::string pattern = "ING";
 
-    std::cout << "\nRunning Rabin-Karp Search for pattern: '" << pattern << "'\n";
-    std::vector<int> rk_matches = StringMatcher::searchRabinKarp(pattern, textContent);
-    for (int idx : rk_matches)
-        std::cout << "Match found at index: " << idx << "\n";
+    // BENCHMARK 1: Single-Threaded KMP
+    std::cout << "Running Single-Threaded KMP...\n";
+    auto startSingle = std::chrono::high_resolution_clock::now();
 
-    std::cout << "\nRunning KMP Search for pattern: '" << pattern << "'\n";
-    std::vector<int> kmp_matches = StringMatcher::searchKMP(pattern, textContent);
-    for (int idx : kmp_matches)
-        std::cout << "Match found at index: " << idx << "\n";
-    std::cout << "\nRunning MULTITHREADED KMP Search (4 Threads) for pattern: '" << pattern << "'\n";
-    std::vector<int> parallel_matches = ParallelEngine::parallelSearchKMP(pattern, textContent, 4);
-    for (int idx : parallel_matches)
-        std::cout << "Match found at index: " << idx << "\n";
+    std::vector<int> kmp_matches = StringMatcher::searchKMP(pattern, massiveText);
 
-    // 2. Test Dynamic Programming
-    std::cout << "\n--- TESTING DP MODULE ---\n";
+    auto endSingle = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double, std::milli> singleTime = endSingle - startSingle;
+    std::cout << "-> Found " << kmp_matches.size() << " matches in " << singleTime.count() << " ms.\n\n";
 
-    std::vector<int> matrix_dims = {10, 20, 30, 40, 30}; // Dimensions for 4 matrices
-    std::cout << "Matrix Chain Min Multiplications: "
-              << AlgoEngine::matrixChainMultiplication(matrix_dims) << "\n";
+    //  BENCHMARK 2: Multi-Threaded KMP
+    int numThreads = 4;
+    std::cout << "Running Multi-Threaded KMP (" << numThreads << " Threads)...\n";
+    auto startMulti = std::chrono::high_resolution_clock::now();
+
+    std::vector<int> parallel_matches = ParallelEngine::parallelSearchKMP(pattern, massiveText, numThreads);
+
+    auto endMulti = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double, std::milli> multiTime = endMulti - startMulti;
+    std::cout << "-> Found " << parallel_matches.size() << " matches in " << multiTime.count() << " ms.\n\n";
+
+    // The Interview Metric
+    std::cout << "========================================\n";
+    std::cout << "PERFORMANCE GAIN: " << singleTime.count() / multiTime.count() << "x faster\n";
+    std::cout << "========================================\n\n";
+
+    // Test DP Module
+    std::cout << "--- TESTING DP MODULE ---\n";
+    std::vector<int> matrix_dims = {10, 20, 30, 40, 30};
+    std::cout << "Matrix Chain Min Multiplications: " << AlgoEngine::matrixChainMultiplication(matrix_dims) << "\n";
 
     std::vector<int> rod_prices = {1, 5, 8, 9, 10, 17, 17, 20};
     int rod_length = 8;
-    std::cout << "Rod Cutting Max Profit for length " << rod_length << ": "
-              << AlgoEngine::rodCutting(rod_prices, rod_length) << "\n";
+    std::cout << "Rod Cutting Max Profit for length " << rod_length << ": " << AlgoEngine::rodCutting(rod_prices, rod_length) << "\n";
 
     return 0;
 }
